@@ -37,6 +37,12 @@ async function probeSabanaBackend() {
 
 let _apiDiscover = null;
 async function resolveApiBase() {
+  // Primero intenta usar la configuración global (desde config.js)
+  if (typeof window.CONFIG !== 'undefined' && window.CONFIG.API_BASE_URL) {
+    API_BASE = window.CONFIG.API_BASE_URL;
+    return;
+  }
+  // Fallback a métodos anteriores
   if (typeof window.SM_API_BASE === 'string' && window.SM_API_BASE.trim()) {
     API_BASE = window.SM_API_BASE.trim().replace(/\/$/, '');
     return;
