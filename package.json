@@ -1,0 +1,12 @@
+{
+  "name": "sabana-market-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend estático de Sabana Market conectado al backend API",
+  "scripts": {
+    "start": "npx serve . -l 5500"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
