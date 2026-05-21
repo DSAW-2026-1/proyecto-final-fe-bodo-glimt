@@ -455,7 +455,18 @@ function apiErrMessage(data, fallback) {
 async function loadCatalog() {
   await ensureApiDiscovered();
   try {
-    const r = await fetch(apiUrl('/products?page=1&limit=100'));
+    let url = '/products?page=1&limit=100';
+    // If API available, include server-side filters to fetch a narrowed list
+    if (!useSeedFallback) {
+      const params = [];
+      if (FILTERS.query) params.push('q=' + encodeURIComponent(FILTERS.query));
+      if (FILTERS.category && FILTERS.category !== 'Todos') params.push('category=' + encodeURIComponent(FILTERS.category));
+      if (FILTERS.states && FILTERS.states.size === 1) params.push('state=' + encodeURIComponent(Array.from(FILTERS.states)[0]));
+      if (Number.isFinite(FILTERS.minPrice) && FILTERS.minPrice > 0) params.push('min_price=' + encodeURIComponent(String(FILTERS.minPrice)));
+      if (Number.isFinite(FILTERS.maxPrice) && FILTERS.maxPrice !== Infinity) params.push('max_price=' + encodeURIComponent(String(FILTERS.maxPrice)));
+      if (params.length) url += '&' + params.join('&');
+    }
+    const r = await fetch(apiUrl(url));
     if (!r.ok) throw new Error('fail');
     const data = await r.json();
     apiProducts = (data.products || []).map(mapApiProduct);
@@ -526,54 +537,30 @@ function renderGrid(prods) {
             Math.round((1 - p.price / p.oldPrice) * 100) +
             '%</span>'
           : '';
+      const imgHtml = (p.imageUrls && p.imageUrls.length)
+        ? '<img src="' + escapeHtml(p.imageUrls[0]) + '" alt="' + escapeHtml(p.title) + '" style="max-height:120px;max-width:100%;object-fit:contain"/>'
+        : '<span>' + (p.emoji || '📦') + '</span>';
+
       return (
         '<div class="pcard" onclick="openProductDetail(\'' +
         escapeJsStr(p.id) +
         '\')">' +
-        '<div class="pimg ' +
-        (p.ci || 'ci-blue') +
-        '">' +
-        '<span>' +
-        (p.emoji || '📦') +
-        '</span>' +
-        '<span class="ptag ' +
-        (p.state === 'nuevo' ? 't-new' : 't-used') +
-        '">' +
+        '<div class="pimg ' + (p.ci || 'ci-blue') + '">' +
+        imgHtml +
+        '<span class="ptag ' + (p.state === 'nuevo' ? 't-new' : 't-used') + '">' +
         escapeHtml(p.state) +
         '</span>' +
-        '<span class="pfav' +
-        (owned ? ' liked' : '') +
-        '" onclick="event.stopPropagation()">' +
+        '<span class="pfav' + (owned ? ' liked' : '') + '" onclick="event.stopPropagation()">' +
         (owned ? '♥' : '♡') +
         '</span>' +
         '</div>' +
         '<div class="pbody">' +
-        '<div class="pcat">' +
-        escapeHtml(p.category) +
-        '</div>' +
-        '<div class="ptitle">' +
-        escapeHtml(p.title) +
-        '</div>' +
-        '<div class="ppricerow">' +
-        '<span class="pprice">' +
-        fmt(p.price) +
-        '</span>' +
-        disc +
-        '</div>' +
-        '<div class="pmeta">' +
-        '<div class="pseller"><div class="pav" style="background:' +
-        (p.sellerColor || '#0D2167') +
-        '">' +
-        escapeHtml(p.sellerAv || '?') +
-        '</div>' +
-        escapeHtml(p.sellerName || 'Vendedor') +
-        '</div>' +
-        '<div class="pstars">' +
-        (p.stars || '★★★★☆') +
-        '</div>' +
-        '</div>' +
-        '</div>' +
-        '</div>'
+        '<div class="pcat">' + escapeHtml(p.category) + '</div>' +
+        '<div class="ptitle">' + escapeHtml(p.title) + '</div>' +
+        '<div class="ppricerow">' + '<span class="pprice">' + fmt(p.price) + '</span>' + disc + '</div>' +
+        '<div class="pmeta"><div class="pseller"><div class="pav" style="background:' + (p.sellerColor || '#0D2167') + '">' + escapeHtml(p.sellerAv || '?') + '</div>' + escapeHtml(p.sellerName || 'Vendedor') + '</div>' +
+        '<div class="pstars">' + (p.stars || '★★★★☆') + '</div></div>' +
+        '</div></div>'
       );
     })
     .join('');
@@ -780,6 +767,7 @@ function openProductModal(id) {
       document.getElementById('pPrice').value = p.price;
       document.getElementById('pState').value = p.state;
       document.getElementById('pCat').value = p.category;
+      document.getElementById('pImages').value = (p.imageUrls || []).join(', ');
     }
   }
   document.getElementById('prodOverlay').classList.add('show');
@@ -830,6 +818,12 @@ async function doSaveProduct() {
     return;
   }
 
+  const imgsInput = document.getElementById('pImages').value || '';
+  const imgs = imgsInput
+    .split(',')
+    .map(function (s) { return s.trim(); })
+    .filter(Boolean);
+
   let res;
   if (editingId) {
     res = await apiFetch('PUT', '/products/' + encodeURIComponent(editingId), {
@@ -838,6 +832,7 @@ async function doSaveProduct() {
       price,
       state,
       category,
+      imageUrls: imgs,
     });
   } else {
     res = await apiFetch('POST', '/products', {
@@ -846,6 +841,7 @@ async function doSaveProduct() {
       price,
       state,
       category,
+      imageUrls: imgs,
     });
   }
 
@@ -880,6 +876,19 @@ function openProductDetail(id) {
   av.style.background = p.sellerColor || '#0D2167';
   document.getElementById('pdSellerName').textContent = p.sellerName || 'Vendedor';
   document.getElementById('pdSellerRep').textContent = 'Comunidad Sabana Market';
+
+  const imgsEl = document.getElementById('pdImages');
+  if (p.imageUrls && p.imageUrls.length) {
+    imgsEl.innerHTML = p.imageUrls
+      .map(function (u, i) {
+        return '<img src="' + escapeHtml(u) + '" alt="img' + i + '" style="max-height:120px;max-width:120px;object-fit:cover;margin-right:8px;border-radius:6px;cursor:pointer" onclick="(function(src){document.getElementById(\'pdEmoji\').textContent = \'' + (p.emoji || '') + '\';document.getElementById(\'pdPrice\').textContent = \'' + fmt(p.price) + '\';})();document.getElementById(\'pdEmoji\').style.background = \'' + (p.sellerColor || '#0D2167') + '\'">';
+      })
+      .join('');
+    document.getElementById('pdImagesSection').style.display = 'block';
+  } else {
+    imgsEl.innerHTML = '';
+    document.getElementById('pdImagesSection').style.display = 'none';
+  }
   document.getElementById('productDetailOverlay').classList.add('show');
 }
 

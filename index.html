@@ -463,6 +463,7 @@ input:disabled{opacity:.65;cursor:not-allowed}
             <select id="pState"><option value="">— Seleccionar —</option><option value="nuevo">Nuevo</option><option value="usado">Usado</option></select>
           </div>
         </div>
+        <div><label>Imágenes (URLs, separadas por coma)</label><input id="pImages" type="text" placeholder="https://... , https://..."/></div>
         <div><label>Categoría *</label>
           <select id="pCat">
             <option value="">— Seleccionar —</option>
@@ -516,6 +517,10 @@ input:disabled{opacity:.65;cursor:not-allowed}
       <button class="mclose" onclick="document.getElementById('productDetailOverlay').classList.remove('show')">✕</button>
     </div>
     <div class="pd-body">
+      <div class="pd-section" id="pdImagesSection" style="margin-bottom:12px">
+        <div class="pd-label">Imágenes</div>
+        <div class="pd-value" id="pdImages"></div>
+      </div>
       <div class="pd-section"><div class="pd-label">Descripción</div><div class="pd-value" id="pdDesc"></div></div>
       <div class="pd-section"><div class="pd-label">Estado</div><div class="pd-value" id="pdState"></div></div>
       <div class="pd-section">
