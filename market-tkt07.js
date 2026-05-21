@@ -1,4 +1,4 @@
-/* Sabana Market — frontend integrado API (TKT-01 … TKT-07) */
+/* Sabana Market — frontend integrado API (TKT-14 … TKT-20) */
 'use strict';
 
 let API_BASE = '';
@@ -226,6 +226,124 @@ const PALETTE = ['#0D2167', '#1A4DB3', '#0F7A4A', '#C9A84C', '#783CB4', '#C0392B
 let apiProducts = [];
 let useSeedFallback = true;
 
+let currentCategory = 'Todos';
+const FILTERS = {
+  query: '',
+  category: 'Todos',
+  states: new Set(['nuevo', 'usado']),
+  minPrice: 0,
+  maxPrice: Infinity,
+};
+
+function normalizeCategory(name) {
+  return String(name || '').trim();
+}
+
+function setCategoryFilter(value) {
+  const normalized = normalizeCategory(value || 'Todos') || 'Todos';
+  currentCategory = normalized;
+  FILTERS.category = normalized;
+  document.querySelectorAll('.catbar .cat').forEach(function (tab) {
+    tab.classList.toggle('on', tab.dataset.cat === normalized);
+  });
+}
+
+function updateStateFilters() {
+  const all = document.getElementById('stateAll');
+  const nuevo = document.getElementById('stateNuevo');
+  const usado = document.getElementById('stateUsado');
+
+  if (all.checked) {
+    FILTERS.states = new Set(['nuevo', 'usado']);
+    nuevo.checked = true;
+    usado.checked = true;
+  } else {
+    const next = new Set();
+    if (nuevo.checked) next.add('nuevo');
+    if (usado.checked) next.add('usado');
+    if (next.size === 0) {
+      next.add('nuevo');
+      next.add('usado');
+      nuevo.checked = true;
+      usado.checked = true;
+      all.checked = true;
+    }
+    FILTERS.states = next;
+  }
+
+  if (nuevo.checked && usado.checked) {
+    all.checked = true;
+  } else {
+    all.checked = false;
+  }
+}
+
+function updatePriceFilters() {
+  const minInput = document.getElementById('minPrice');
+  const maxInput = document.getElementById('maxPrice');
+  const min = Number(minInput.value.replace(/[^0-9]/g, ''));
+  const max = Number(maxInput.value.replace(/[^0-9]/g, ''));
+  FILTERS.minPrice = Number.isFinite(min) && min >= 0 ? min : 0;
+  FILTERS.maxPrice = Number.isFinite(max) && max > 0 ? max : Infinity;
+}
+
+function filterProducts(prods) {
+  if (!Array.isArray(prods)) return [];
+  const q = String(FILTERS.query || '').trim().toLowerCase();
+  const category = FILTERS.category;
+  const states = FILTERS.states;
+  const minPrice = FILTERS.minPrice;
+  const maxPrice = FILTERS.maxPrice;
+
+  return prods.filter(function (p) {
+    if (category && category !== 'Todos' && String(p.category) !== category) return false;
+    if (states && states.size > 0 && !states.has(String(p.state))) return false;
+    if (Number.isFinite(minPrice) && Number(p.price) < minPrice) return false;
+    if (Number.isFinite(maxPrice) && Number(p.price) > maxPrice) return false;
+    if (q) {
+      const normalized = String(p.title || p.desc || p.category || '').toLowerCase();
+      return normalized.includes(q);
+    }
+    return true;
+  });
+}
+
+function applyFilters() {
+  renderGrid(filterProducts(displayProducts()));
+}
+
+function initFilters() {
+  document.getElementById('searchInput').addEventListener('input', function () {
+    FILTERS.query = this.value;
+    applyFilters();
+  });
+
+  document.querySelectorAll('.catbar .cat').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      setCategoryFilter(tab.dataset.cat);
+      applyFilters();
+    });
+  });
+
+  document.getElementById('stateAll').addEventListener('change', function () {
+    updateStateFilters();
+    applyFilters();
+  });
+  document.getElementById('stateNuevo').addEventListener('change', function () {
+    updateStateFilters();
+    applyFilters();
+  });
+  document.getElementById('stateUsado').addEventListener('change', function () {
+    updateStateFilters();
+    applyFilters();
+  });
+
+  document.getElementById('priceApplyBtn').addEventListener('click', function () {
+    updatePriceFilters();
+    applyFilters();
+  });
+}
+
 function sellerShortLabel(fullName) {
   const parts = String(fullName || 'Vendedor')
     .trim()
@@ -394,7 +512,7 @@ function escapeJsStr(s) {
 }
 
 function renderGrid(prods) {
-  if (!prods) prods = displayProducts();
+  if (!prods) prods = filterProducts(displayProducts());
   const grid = document.getElementById('prodGrid');
   const session = getSession();
   grid.innerHTML = prods
@@ -931,22 +1049,10 @@ function showToast(msg, type) {
   }, 3200);
 }
 
-document.getElementById('searchInput').addEventListener('input', function () {
-  const q = this.value.toLowerCase();
-  const base = displayProducts();
-  const filtered = q
-    ? base.filter(function (p) {
-        return (
-          p.title.toLowerCase().includes(q) || String(p.category).toLowerCase().includes(q)
-        );
-      })
-    : base;
-  renderGrid(filtered);
-});
-
 (function boot() {
   ensureApiDiscovered().then(function () {
     renderNavRight();
+    initFilters();
     loadCatalog();
   });
 })();

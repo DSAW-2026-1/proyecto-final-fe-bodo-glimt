@@ -279,11 +279,11 @@ input:disabled{opacity:.65;cursor:not-allowed}
 </nav>
 
 <div class="catbar">
-  <div class="cat on">⊞ Todos</div>
-  <div class="cat">📚 Libros</div><div class="cat">💻 Tecnología</div>
-  <div class="cat">👕 Ropa</div><div class="cat">✏️ Papelería</div>
-  <div class="cat">🎮 Entretenimiento</div><div class="cat">🍱 Alimentos</div>
-  <div class="cat">🚴 Deportes</div><div class="cat">🏠 Hogar</div><div class="cat">✨ Otros</div>
+  <div class="cat on" data-cat="Todos">⊞ Todos</div>
+  <div class="cat" data-cat="Libros">📚 Libros</div><div class="cat" data-cat="Tecnología">💻 Tecnología</div>
+  <div class="cat" data-cat="Ropa">👕 Ropa</div><div class="cat" data-cat="Papelería">✏️ Papelería</div>
+  <div class="cat" data-cat="Entretenimiento">🎮 Entretenimiento</div><div class="cat" data-cat="Alimentos">🍱 Alimentos</div>
+  <div class="cat" data-cat="Deportes">🚴 Deportes</div><div class="cat" data-cat="Hogar">🏠 Hogar</div><div class="cat" data-cat="Otros">✨ Otros</div>
 </div>
 
 <section class="hero">
@@ -325,16 +325,16 @@ input:disabled{opacity:.65;cursor:not-allowed}
     <div class="fcard">
       <div class="fc-head"><span class="fc-dot"></span>Estado</div>
       <div class="fc-body">
-        <label class="fchk"><input type="checkbox" checked/><span>Todos</span></label>
-        <label class="fchk"><input type="checkbox"/><span>Nuevo</span><span class="fcnt">4</span></label>
-        <label class="fchk"><input type="checkbox"/><span>Usado</span><span class="fcnt">4</span></label>
+        <label class="fchk"><input id="stateAll" type="checkbox" checked/><span>Todos</span></label>
+        <label class="fchk"><input id="stateNuevo" type="checkbox"/><span>Nuevo</span><span class="fcnt">4</span></label>
+        <label class="fchk"><input id="stateUsado" type="checkbox"/><span>Usado</span><span class="fcnt">4</span></label>
       </div>
     </div>
     <div class="fcard">
       <div class="fc-head"><span class="fc-dot"></span>Precio</div>
       <div class="fc-body">
-        <div class="pinputs"><input class="pin" placeholder="Mín $" value="0"/><input class="pin" placeholder="Máx $" value="500.000"/></div>
-        <button class="papply">Aplicar</button>
+        <div class="pinputs"><input class="pin" id="minPrice" placeholder="Mín $" value="0"/><input class="pin" id="maxPrice" placeholder="Máx $" value="500.000"/></div>
+        <button class="papply" id="priceApplyBtn">Aplicar</button>
       </div>
     </div>
   </aside>
