@@ -366,6 +366,14 @@ input:disabled{opacity:.65;cursor:not-allowed}
       <div id="mpList" class="mplist"><div class="mp-empty">No tienes productos aún.</div></div>
     </div>
 
+    <div class="my-products-bar" id="chatZone" style="display:none">
+      <div class="mpb-head">
+        <h3>Zona de mensajes</h3>
+        <button class="btn-new-prod" onclick="openConversations()">Abrir chat</button>
+      </div>
+      <div id="chatZonePreview" class="mplist"><div class="mp-empty">Inicia una conversación con un vendedor desde el detalle de un producto.</div></div>
+    </div>
+
     <div>
       <div class="sec-hdr"><div class="sec-bar"></div><h3>Publicaciones recientes</h3><a>Ver todas →</a></div>
       <div class="pgrid" id="prodGrid"></div>
@@ -539,7 +547,7 @@ input:disabled{opacity:.65;cursor:not-allowed}
       </div>
     </div>
     <div class="pd-actions">
-      <button type="button" class="msubmit" onclick="startConversationFromDetail()" style="background:#0F7A4A">Contactar vendedor</button>
+      <button id="pdContactBtn" type="button" class="msubmit" onclick="startConversationFromDetail()" style="background:#0F7A4A">Contactar vendedor</button>
       <button type="button" class="msubmit" onclick="createPurchaseFromDetail()" style="background:#1A4DB3">Comprar</button>
       <button type="button" class="btn-pd-close" onclick="document.getElementById('productDetailOverlay').classList.remove('show')">Cerrar</button>
     </div>

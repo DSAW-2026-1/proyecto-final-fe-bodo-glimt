@@ -487,6 +487,7 @@ function renderNavRight() {
       '<button class="btn-pub" onclick="openModal(\'register\')">+ Publicar</button>' +
       '<button class="btn-in" onclick="openModal(\'login\')">Ingresar</button>';
     document.getElementById('myProductsBar').style.display = 'none';
+    document.getElementById('chatZone').style.display = 'none';
     return;
   }
   const initials = session.name
@@ -504,10 +505,13 @@ function renderNavRight() {
     escapeHtml(session.name) +
     '</span></div>' +
     '<div class="nvline"></div>' +
+    '<button class="btn-pub" onclick="openConversations()">Mensajes</button>' +
     '<button class="btn-pub" onclick="openProductModal()">+ Publicar</button>' +
     '<button class="btn-logout" onclick="doLogout()">Salir</button>';
   document.getElementById('myProductsBar').style.display = 'block';
+  document.getElementById('chatZone').style.display = 'block';
   renderMyProducts();
+  loadConversationsPreview();
 }
 
 function escapeHtml(s) {
@@ -889,6 +893,12 @@ function openProductDetail(id) {
     imgsEl.innerHTML = '';
     document.getElementById('pdImagesSection').style.display = 'none';
   }
+  const contactBtn = document.getElementById('pdContactBtn');
+  if (contactBtn) {
+    const canContact = _viewingProduct && _viewingProduct.sellerId && _viewingProduct.sellerId !== 'seed' && !useSeedFallback;
+    contactBtn.disabled = !canContact;
+    contactBtn.title = canContact ? 'Enviar mensaje al vendedor' : 'No se puede contactar a este vendedor desde datos de demostración';
+  }
   document.getElementById('productDetailOverlay').classList.add('show');
 }
 
@@ -1074,6 +1084,7 @@ async function openConversations() {
   if (!s) return openModal('login');
   document.getElementById('conversationsOverlay').classList.add('show');
   await loadConversations();
+  await loadConversationsPreview();
 }
 
 function closeConversations() {
@@ -1098,6 +1109,31 @@ async function loadConversations() {
     .map(function (c) {
       const lm = c.last_message ? (c.last_message.text || '') : '';
       return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversation(\'' + c.id + '\')"><div style="font-weight:700">' + (c.product_id ? 'Sobre producto' : 'Conversación') + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
+    })
+    .join('');
+}
+
+async function loadConversationsPreview() {
+  const box = document.getElementById('chatZonePreview');
+  if (!getSession()) {
+    box.innerHTML = '<div class="mp-empty">Inicia sesión para ver tus mensajes.</div>';
+    return;
+  }
+  const res = await apiFetch('GET', '/conversations');
+  if (!res.ok) {
+    box.innerHTML = '<div class="mp-empty">No se pudieron cargar las conversaciones.</div>';
+    return;
+  }
+  const rows = res.data.conversations || [];
+  if (!rows.length) {
+    box.innerHTML = '<div class="mp-empty">Aún no tienes conversaciones. Contacta a un vendedor desde un producto.</div>';
+    return;
+  }
+  box.innerHTML = rows
+    .slice(0, 3)
+    .map(function (c) {
+      const lm = c.last_message ? (c.last_message.text || '') : 'Sin mensajes aún';
+      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversations();openConversation(\'' + c.id + '\')"><div style="font-weight:700">' + (c.product_id ? 'Producto' : 'Conversación') + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
     })
     .join('');
 }
@@ -1137,17 +1173,20 @@ async function startConversationFromDetail() {
   const s = getSession();
   if (!s) return openModal('login');
   if (!_viewingProduct) return;
+  if (!_viewingProduct.sellerId || _viewingProduct.sellerId === 'seed' || useSeedFallback) {
+    showToast('Solo puedes contactar a vendedores reales desde productos cargados en el sistema.', 'error');
+    return;
+  }
   const payload = { sellerId: _viewingProduct.sellerId, productId: _viewingProduct.id };
   const res = await apiFetch('POST', '/conversations', payload);
   if (!res.ok) {
     showToast(apiErrMessage(res.data, 'No se pudo iniciar la conversación'), 'error');
     return;
   }
-  const cid = res.data.conversation.id || res.data.conversation;
+  const cid = res.data.conversation && (res.data.conversation.id || res.data.conversation);
   document.getElementById('productDetailOverlay').classList.remove('show');
-  openConversations();
-  await loadConversations();
-  if (cid) openConversation(cid);
+  await openConversations();
+  if (cid) await openConversation(cid);
 }
 
 // --- Purchases ---
