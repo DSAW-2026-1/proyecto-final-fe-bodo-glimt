@@ -1065,3 +1065,169 @@ function showToast(msg, type) {
     loadCatalog();
   });
 })();
+
+// --- Conversations / Messages ---
+let CURRENT_CONVERSATION_ID = null;
+
+async function openConversations() {
+  const s = getSession();
+  if (!s) return openModal('login');
+  document.getElementById('conversationsOverlay').classList.add('show');
+  await loadConversations();
+}
+
+function closeConversations() {
+  document.getElementById('conversationsOverlay').classList.remove('show');
+  CURRENT_CONVERSATION_ID = null;
+  document.getElementById('convMessages').innerHTML = '';
+}
+
+async function loadConversations() {
+  const res = await apiFetch('GET', '/conversations');
+  const el = document.getElementById('convList');
+  const err = document.getElementById('convListErr');
+  err.className = 'merr';
+  if (!res.ok) {
+    err.textContent = apiErrMessage(res.data, 'No se pudieron cargar conversaciones.');
+    err.className = 'merr show';
+    el.innerHTML = '';
+    return;
+  }
+  const rows = res.data.conversations || [];
+  el.innerHTML = rows
+    .map(function (c) {
+      const lm = c.last_message ? (c.last_message.text || '') : '';
+      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversation(\'' + c.id + '\')"><div style="font-weight:700">' + (c.product_id ? 'Sobre producto' : 'Conversación') + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
+    })
+    .join('');
+}
+
+async function openConversation(id) {
+  CURRENT_CONVERSATION_ID = id;
+  const res = await apiFetch('GET', '/conversations/' + encodeURIComponent(id) + '/messages');
+  const box = document.getElementById('convMessages');
+  if (!res.ok) {
+    box.innerHTML = '<div class="merr show">' + escapeHtml(apiErrMessage(res.data, 'No se pudo cargar la conversación')) + '</div>';
+    return;
+  }
+  const msgs = res.data.messages || [];
+  box.innerHTML = msgs
+    .map(function (m) {
+      return '<div style="margin-bottom:8px"><div style="font-size:12px;color:#445">' + escapeHtml(m.sender_id) + ' · <span style="font-size:11px;color:#99">' + new Date(m.created_at).toLocaleString() + '</span></div><div style="padding:8px;border-radius:6px;background:#F4F6FC">' + escapeHtml(m.text) + '</div></div>';
+    })
+    .join('');
+  // scroll to bottom
+  box.scrollTop = box.scrollHeight;
+}
+
+async function doSendMessage() {
+  const txt = document.getElementById('convMsgInput').value.trim();
+  if (!txt || !CURRENT_CONVERSATION_ID) return;
+  const res = await apiFetch('POST', '/conversations/' + encodeURIComponent(CURRENT_CONVERSATION_ID) + '/messages', { text: txt });
+  if (!res.ok) {
+    showToast(apiErrMessage(res.data, 'No se pudo enviar el mensaje'), 'error');
+    return;
+  }
+  document.getElementById('convMsgInput').value = '';
+  await openConversation(CURRENT_CONVERSATION_ID);
+  await loadConversations();
+}
+
+async function startConversationFromDetail() {
+  const s = getSession();
+  if (!s) return openModal('login');
+  if (!_viewingProduct) return;
+  const payload = { sellerId: _viewingProduct.sellerId, productId: _viewingProduct.id };
+  const res = await apiFetch('POST', '/conversations', payload);
+  if (!res.ok) {
+    showToast(apiErrMessage(res.data, 'No se pudo iniciar la conversación'), 'error');
+    return;
+  }
+  const cid = res.data.conversation.id || res.data.conversation;
+  document.getElementById('productDetailOverlay').classList.remove('show');
+  openConversations();
+  await loadConversations();
+  if (cid) openConversation(cid);
+}
+
+// --- Purchases ---
+async function createPurchaseFromDetail() {
+  const s = getSession();
+  if (!s) return openModal('login');
+  if (!_viewingProduct) return;
+  const res = await apiFetch('POST', '/purchases', { productId: _viewingProduct.id });
+  if (!res.ok) {
+    showToast(apiErrMessage(res.data, 'No se pudo completar la compra'), 'error');
+    return;
+  }
+  showToast('Compra registrada ✓', 'success');
+  document.getElementById('productDetailOverlay').classList.remove('show');
+}
+
+async function loadUserPurchases() {
+  const s = getSession();
+  if (!s) return;
+  const res = await apiFetch('GET', '/users/' + encodeURIComponent(s.id) + '/purchases');
+  const el = document.getElementById('purchasesList');
+  if (!res.ok) {
+    el.innerHTML = '<div class="merr show">' + escapeHtml(apiErrMessage(res.data, 'No se pudo cargar historial')) + '</div>';
+    return;
+  }
+  const rows = res.data.purchases || [];
+  if (!rows.length) {
+    el.innerHTML = '<div class="mp-empty">No hay compras registradas.</div>';
+    return;
+  }
+  el.innerHTML = rows
+    .map(function (p) {
+      const img = p.image_urls && p.image_urls.length ? '<img src="' + escapeHtml(p.image_urls[0]) + '" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:8px"/>' : '';
+      return '<div class="mpitem" style="align-items:center">' + img + '<div class="mpitem-info"><div class="mpitem-name">' + escapeHtml(p.product_title || p.title) + '</div><div class="mpitem-meta">' + fmt(p.price) + ' · ' + new Date(p.created_at).toLocaleString() + '</div></div></div>';
+    })
+    .join('');
+}
+
+// Hook purchases load into profile open
+const _openProfileOrig = openProfile;
+openProfile = async function () {
+  await _openProfileOrig();
+  await loadUserPurchases();
+};
+
+// --- Reviews ---
+let CURRENT_REVIEW_SELLER = null;
+async function openReviewsForSeller(sellerId) {
+  CURRENT_REVIEW_SELLER = sellerId;
+  const res = await apiFetch('GET', '/users/' + encodeURIComponent(sellerId) + '/reviews');
+  if (!res.ok) {
+    showToast(apiErrMessage(res.data, 'No se pudo cargar reseñas'), 'error');
+    return;
+  }
+  const sum = res.data.average != null ? String(res.data.average) : 'Sin calificaciones';
+  document.getElementById('reviewsSummary').innerHTML = '<div style="font-weight:700">Promedio: ' + escapeHtml(sum) + ' · ' + (res.data.total || 0) + ' reseñas</div>';
+  const rows = res.data.reviews || [];
+  document.getElementById('reviewsList').innerHTML = rows
+    .map(function (r) {
+      return '<div style="padding:8px;border-bottom:1px solid var(--border)"><div style="font-weight:700">' + escapeHtml(r.reviewer_name) + ' · ' + escapeHtml(String(r.rating)) + '</div><div style="font-size:13px;color:#444">' + escapeHtml(r.comment || '') + '</div></div>';
+    })
+    .join('');
+  document.getElementById('reviewsOverlay').classList.add('show');
+}
+
+function closeReviews() {
+  document.getElementById('reviewsOverlay').classList.remove('show');
+  CURRENT_REVIEW_SELLER = null;
+}
+
+async function doPostReview() {
+  if (!CURRENT_REVIEW_SELLER) return;
+  const rating = Number(document.getElementById('revRating').value);
+  const comment = document.getElementById('revComment').value.trim();
+  const res = await apiFetch('POST', '/users/' + encodeURIComponent(CURRENT_REVIEW_SELLER) + '/reviews', { rating, comment });
+  if (!res.ok) {
+    showToast(apiErrMessage(res.data, 'No se pudo enviar la reseña'), 'error');
+    return;
+  }
+  showToast('Reseña enviada ✓', 'success');
+  await openReviewsForSeller(CURRENT_REVIEW_SELLER);
+}
+
