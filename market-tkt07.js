@@ -371,9 +371,27 @@ function colorFromSeed(str) {
   return PALETTE[Math.abs(h) % PALETTE.length];
 }
 
+function renderStarsText(rating) {
+  const r = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += i <= r ? '★' : '☆';
+  return s;
+}
+
+function formatReputationLabel(avg, total) {
+  if (avg == null || !total) return 'Sin reseñas aún';
+  return renderStarsText(avg) + ' · ' + Number(avg).toFixed(1) + ' (' + total + ')';
+}
+
 function mapApiProduct(row) {
   const sellerNameFull = row.seller_name || 'Vendedor';
   const sid = row.seller_id || '';
+  const rep =
+    row.seller_reputation != null
+      ? Number(row.seller_reputation)
+      : row.sellerReputation != null
+        ? Number(row.sellerReputation)
+        : null;
   return {
     id: row.id,
     title: row.title,
@@ -385,9 +403,11 @@ function mapApiProduct(row) {
     ci: CI_MAP[row.category] || 'ci-blue',
     sellerId: sid,
     sellerName: sellerShortLabel(sellerNameFull),
+    sellerNameFull: sellerNameFull,
     sellerAv: initialsFromName(sellerNameFull),
     sellerColor: colorFromSeed(String(sid)),
-    stars: '★★★★☆',
+    sellerReputation: rep,
+    stars: rep != null ? renderStarsText(rep) : '☆☆☆☆☆',
     imageUrls: row.image_urls,
   };
 }
@@ -931,8 +951,19 @@ function openProductDetail(id) {
   const av = document.getElementById('pdSellerAv');
   av.textContent = p.sellerAv || '?';
   av.style.background = p.sellerColor || '#0D2167';
-  document.getElementById('pdSellerName').textContent = p.sellerName || 'Vendedor';
-  document.getElementById('pdSellerRep').textContent = 'Comunidad Sabana Market';
+  document.getElementById('pdSellerName').textContent = p.sellerNameFull || p.sellerName || 'Vendedor';
+  document.getElementById('pdSellerStars').textContent = p.stars || '☆☆☆☆☆';
+  document.getElementById('pdSellerRep').textContent =
+    p.sellerReputation != null
+      ? Number(p.sellerReputation).toFixed(1) + ' de 5 · Comunidad Sabana'
+      : 'Sin reseñas aún';
+
+  const revBtn = document.getElementById('pdReviewsBtn');
+  const revRow = document.getElementById('pdSellerRow');
+  const canReviews = p.sellerId && p.sellerId !== 'seed' && !useSeedFallback;
+  if (revBtn) revBtn.style.display = canReviews ? 'block' : 'none';
+  if (revRow) revRow.style.pointerEvents = canReviews ? 'auto' : 'none';
+  if (canReviews) refreshProductDetailReviews(p.sellerId, p);
 
   const imgsEl = document.getElementById('pdImages');
   if (p.imageUrls && p.imageUrls.length) {
@@ -1489,85 +1520,198 @@ openProfile = async function () {
 
 // --- Reviews ---
 let CURRENT_REVIEW_SELLER = null;
-async function loadReviewableOrders(sellerId) {
-  const sel = document.getElementById('revOrderId');
-  sel.innerHTML = '<option value="">Selecciona una compra entregada…</option>';
-  const res = await apiFetch('GET', '/orders');
-  if (!res.ok) return;
-  const orders = (res.data.orders || []).filter(function (o) {
-    return o.status === 'entregada';
-  });
-  orders.forEach(function (o) {
-    const hasSeller = (o.items || []).some(function (it) {
-      return String(it.sellerId || it.seller_id) === String(sellerId);
-    });
-    if (!hasSeller) return;
-    const label =
-      (o.items || [])
-        .map(function (it) {
-          return it.title || 'Producto';
-        })
-        .join(', ') +
-      ' — ' +
-      new Date(o.createdAt || o.created_at).toLocaleDateString();
-    const opt = document.createElement('option');
-    opt.value = o.orderId || o.id;
-    opt.textContent = label;
-    sel.appendChild(opt);
+let CURRENT_REVIEW_SELLER_NAME = '';
+let SELECTED_REVIEW_RATING = 0;
+
+function setReviewRating(n) {
+  SELECTED_REVIEW_RATING = n;
+  document.getElementById('revRating').value = String(n);
+  document.querySelectorAll('.star-pick').forEach(function (btn) {
+    const v = Number(btn.getAttribute('data-v'));
+    btn.classList.toggle('on', v <= n);
   });
 }
 
-async function openReviewsForSeller(sellerId) {
-  CURRENT_REVIEW_SELLER = sellerId;
-  const res = await apiFetch('GET', '/reviews?sellerId=' + encodeURIComponent(sellerId));
-  if (!res.ok) {
-    showToast(apiErrMessage(res.data, 'No se pudo cargar reseñas'), 'error');
+function openReviewsFromDetail() {
+  if (!_viewingProduct) return;
+  if (!_viewingProduct.sellerId || _viewingProduct.sellerId === 'seed' || useSeedFallback) {
+    showToast('Las reseñas solo están disponibles para productos del marketplace.', 'error');
     return;
   }
-  const avg =
-    res.data.averageRating != null
-      ? String(res.data.averageRating)
-      : res.data.average != null
-        ? String(res.data.average)
-        : 'Sin calificaciones';
-  const total = res.data.totalReviews != null ? res.data.totalReviews : res.data.total || 0;
-  document.getElementById('reviewsSummary').innerHTML =
-    '<div style="font-weight:700">Promedio: ' + escapeHtml(avg) + ' · ' + total + ' reseñas</div>';
-  const rows = res.data.reviews || [];
-  document.getElementById('reviewsList').innerHTML = rows
-    .map(function (r) {
-      const name = r.buyerName || r.reviewer_name || 'Comprador';
-      return (
-        '<div style="padding:8px;border-bottom:1px solid var(--border)"><div style="font-weight:700">' +
-        escapeHtml(name) +
-        ' · ' +
-        escapeHtml(String(r.rating)) +
-        '</div><div style="font-size:13px;color:#444">' +
-        escapeHtml(r.comment || '') +
-        '</div></div>'
-      );
+  openReviewsForSeller(
+    _viewingProduct.sellerId,
+    _viewingProduct.sellerNameFull || _viewingProduct.sellerName
+  );
+}
+
+async function refreshProductDetailReviews(sellerId, productRef) {
+  const res = await fetch(apiUrl('/reviews?sellerId=' + encodeURIComponent(sellerId)));
+  if (!res.ok) return;
+  const data = await res.json().catch(function () {
+    return {};
+  });
+  const avg = data.averageRating != null ? data.averageRating : data.average;
+  const total = data.totalReviews != null ? data.totalReviews : data.total || 0;
+  if (avg != null && total > 0) {
+    document.getElementById('pdSellerStars').textContent = renderStarsText(avg);
+    document.getElementById('pdSellerRep').textContent =
+      Number(avg).toFixed(1) + ' · ' + total + (total === 1 ? ' reseña' : ' reseñas');
+    if (productRef) {
+      productRef.sellerReputation = Number(avg);
+      productRef.stars = renderStarsText(avg);
+    }
+  }
+}
+
+async function loadReviewableOrders(sellerId) {
+  const sel = document.getElementById('revOrderId');
+  sel.innerHTML = '<option value="">Selecciona tu compra entregada…</option>';
+  const s = getSession();
+  if (!s) return 0;
+
+  const res = await apiFetch('GET', '/orders');
+  if (!res.ok) return 0;
+
+  let count = 0;
+  (res.data.orders || [])
+    .filter(function (o) {
+      return o.status === 'entregada';
     })
-    .join('');
-  await loadReviewableOrders(sellerId);
+    .forEach(function (o) {
+      const hasSeller = (o.items || []).some(function (it) {
+        return String(it.sellerId || it.seller_id) === String(sellerId);
+      });
+      if (!hasSeller) return;
+      count += 1;
+      const label =
+        (o.items || [])
+          .map(function (it) {
+            return it.title || 'Producto';
+          })
+          .join(', ') +
+        ' — ' +
+        new Date(o.createdAt || o.created_at).toLocaleDateString('es-CO');
+      const opt = document.createElement('option');
+      opt.value = o.orderId || o.id;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    });
+  return count;
+}
+
+function updateReviewsFormVisibility(sellerId, orderCount) {
+  const s = getSession();
+  const form = document.getElementById('reviewsFormSection');
+  const loginHint = document.getElementById('reviewsFormLogin');
+
+  if (!s) {
+    form.classList.add('hidden');
+    loginHint.style.display = 'block';
+    return;
+  }
+  loginHint.style.display = 'none';
+
+  if (String(s.id) === String(sellerId)) {
+    form.classList.add('hidden');
+    return;
+  }
+
+  if (orderCount > 0) {
+    form.classList.remove('hidden');
+  } else {
+    form.classList.add('hidden');
+    loginHint.style.display = 'block';
+    loginHint.innerHTML =
+      '<p class="reviews-form-hint" style="margin:0">Compra y recibe el producto para poder dejar una reseña a este vendedor.</p>';
+  }
+}
+
+async function openReviewsForSeller(sellerId, sellerDisplayName) {
+  CURRENT_REVIEW_SELLER = sellerId;
+  CURRENT_REVIEW_SELLER_NAME = sellerDisplayName || 'Vendedor';
+  SELECTED_REVIEW_RATING = 0;
+  setReviewRating(0);
+  document.getElementById('revComment').value = '';
+  document.getElementById('revLoadErr').className = 'merr';
+
+  const av = document.getElementById('revSellerAv');
+  av.textContent = initialsFromName(CURRENT_REVIEW_SELLER_NAME);
+  av.style.background = colorFromSeed(String(sellerId));
+  document.getElementById('revSellerName').textContent = CURRENT_REVIEW_SELLER_NAME;
+
   document.getElementById('reviewsOverlay').classList.add('show');
+  document.getElementById('reviewsList').innerHTML =
+    '<div class="reviews-empty"><p>Cargando reseñas…</p></div>';
+
+  const res = await apiFetch('GET', '/reviews?sellerId=' + encodeURIComponent(sellerId));
+  if (!res.ok) {
+    document.getElementById('revLoadErr').textContent = apiErrMessage(res.data, 'No se pudieron cargar reseñas');
+    document.getElementById('revLoadErr').className = 'merr show';
+    document.getElementById('reviewsList').innerHTML = '';
+    return;
+  }
+
+  const avg = res.data.averageRating != null ? res.data.averageRating : res.data.average;
+  const total = res.data.totalReviews != null ? res.data.totalReviews : res.data.total || 0;
+
+  document.getElementById('revHeaderStars').textContent =
+    avg != null && total > 0 ? renderStarsText(avg) : '☆☆☆☆☆';
+  document.getElementById('revHeaderScore').textContent =
+    avg != null && total > 0
+      ? Number(avg).toFixed(1) + ' / 5 · ' + total + (total === 1 ? ' reseña' : ' reseñas')
+      : 'Sin calificaciones aún';
+
+  const rows = res.data.reviews || [];
+  if (!rows.length) {
+    document.getElementById('reviewsList').innerHTML =
+      '<div class="reviews-empty"><div class="reviews-empty-icon">⭐</div><h4 style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">Aún no hay reseñas</h4><p>Sé el primero en comprar y compartir tu experiencia.</p></div>';
+  } else {
+    document.getElementById('reviewsList').innerHTML = rows
+      .map(function (r) {
+        const name = r.buyerName || r.reviewer_name || 'Comprador';
+        const when = r.createdAt || r.created_at;
+        const dateStr = when
+          ? new Date(when).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+          : '';
+        return (
+          '<article class="review-card">' +
+          '<div class="review-card-top">' +
+          '<span class="review-card-name">' +
+          escapeHtml(name) +
+          '</span>' +
+          '<span class="review-card-stars">' +
+          renderStarsText(r.rating) +
+          '</span></div>' +
+          (dateStr ? '<div class="review-card-date">' + escapeHtml(dateStr) + '</div>' : '') +
+          '<p class="review-card-text">' +
+          escapeHtml(r.comment || 'Sin comentario.') +
+          '</p></article>'
+        );
+      })
+      .join('');
+  }
+
+  const orderCount = await loadReviewableOrders(sellerId);
+  updateReviewsFormVisibility(sellerId, orderCount);
 }
 
 function closeReviews() {
   document.getElementById('reviewsOverlay').classList.remove('show');
   CURRENT_REVIEW_SELLER = null;
+  CURRENT_REVIEW_SELLER_NAME = '';
 }
 
 async function doPostReview() {
   if (!CURRENT_REVIEW_SELLER) return;
-  const rating = Number(document.getElementById('revRating').value);
+  const rating = Number(document.getElementById('revRating').value) || SELECTED_REVIEW_RATING;
   const comment = document.getElementById('revComment').value.trim();
   const orderId = document.getElementById('revOrderId').value;
   if (!orderId) {
-    showToast('Selecciona una orden entregada para reseñar', 'error');
+    showToast('Selecciona la compra que quieres calificar', 'error');
     return;
   }
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    showToast('La calificación debe ser un entero entre 1 y 5', 'error');
+    showToast('Elige una calificación de 1 a 5 estrellas', 'error');
     return;
   }
   const res = await apiFetch('POST', '/reviews', {
@@ -1580,7 +1724,8 @@ async function doPostReview() {
     showToast(apiErrMessage(res.data, 'No se pudo enviar la reseña'), 'error');
     return;
   }
-  showToast('Reseña enviada ✓', 'success');
-  await openReviewsForSeller(CURRENT_REVIEW_SELLER);
+  showToast('Reseña publicada ✓', 'success');
+  await loadCatalog();
+  await openReviewsForSeller(CURRENT_REVIEW_SELLER, CURRENT_REVIEW_SELLER_NAME);
 }
 

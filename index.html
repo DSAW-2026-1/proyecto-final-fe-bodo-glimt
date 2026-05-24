@@ -317,6 +317,41 @@ input:disabled{opacity:.65;cursor:not-allowed}
   .chat-layout.has-active .chat-sidebar{display:none}
   .chat-layout.has-active .chat-back{display:flex;align-items:center;justify-content:center}
 }
+
+/* —— Reseñas —— */
+#reviewsOverlay.overlay{padding:16px}
+.reviews-shell{background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:min(90vh,720px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(6,14,43,.28)}
+.reviews-head{background:linear-gradient(135deg,var(--navy2),var(--navy));padding:18px 22px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.reviews-head-av{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
+.reviews-head-info{flex:1;min-width:0}
+.reviews-head-info h2{font-family:var(--serif);font-size:20px;color:#fff;margin:0}
+.reviews-head-info p{font-size:12px;color:rgba(255,255,255,.55);margin:4px 0 0}
+.reviews-score{display:flex;align-items:center;gap:8px;margin-top:6px}
+.reviews-score-stars{font-size:18px;color:var(--gold);letter-spacing:1px}
+.reviews-score-num{font-size:13px;color:rgba(255,255,255,.85);font-weight:600}
+.reviews-body{padding:0;overflow-y:auto;flex:1;display:flex;flex-direction:column}
+.reviews-list{padding:16px 20px;flex:1}
+.reviews-empty{text-align:center;padding:32px 20px;color:var(--muted)}
+.reviews-empty-icon{font-size:40px;margin-bottom:10px}
+.review-card{padding:14px 16px;background:#F8F9FD;border:1px solid var(--border);border-radius:12px;margin-bottom:10px}
+.review-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.review-card-name{font-size:13px;font-weight:700;color:var(--text)}
+.review-card-stars{font-size:14px;color:var(--gold);letter-spacing:1px}
+.review-card-date{font-size:10px;color:var(--muted)}
+.review-card-text{font-size:13px;line-height:1.55;color:var(--sub)}
+.reviews-form{border-top:1px solid var(--border);padding:18px 20px;background:#FAFBFE;flex-shrink:0}
+.reviews-form h3{font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text)}
+.reviews-form-hint{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+.reviews-form.hidden{display:none}
+.star-picker{display:flex;gap:6px;margin:10px 0 14px}
+.star-pick{font-size:32px;background:none;border:none;cursor:pointer;color:#D0D8EC;padding:0;line-height:1;transition:transform .1s,color .15s}
+.star-pick.on{color:var(--gold)}
+.star-pick:hover{transform:scale(1.1)}
+.pd-seller-row{cursor:pointer}
+.pd-seller-row:hover{border-color:var(--sky);background:var(--skylt)}
+.pd-reviews-link{font-size:11px;color:var(--sky);font-weight:600;margin-top:4px}
+.btn-reviews-outline{width:100%;height:40px;margin-top:8px;background:#fff;border:1px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--navy);cursor:pointer}
+.btn-reviews-outline:hover{border-color:var(--sky);background:var(--skylt)}
 </style>
 </head>
 <body>
@@ -603,10 +638,16 @@ input:disabled{opacity:.65;cursor:not-allowed}
       <div class="pd-section"><div class="pd-label">Estado</div><div class="pd-value" id="pdState"></div></div>
       <div class="pd-section">
         <div class="pd-label">Vendedor</div>
-        <div class="pd-seller-row" id="pdSellerRow">
+        <div class="pd-seller-row" id="pdSellerRow" onclick="openReviewsFromDetail()" title="Ver reseñas del vendedor">
           <div class="pd-seller-av" id="pdSellerAv"></div>
-          <div><div class="pd-seller-name" id="pdSellerName"></div><div class="pd-seller-rep" id="pdSellerRep"></div></div>
+          <div style="flex:1;min-width:0">
+            <div class="pd-seller-name" id="pdSellerName"></div>
+            <div class="pd-seller-rep" id="pdSellerRep"></div>
+            <div class="pd-reviews-link" id="pdReviewsLink">Ver reseñas →</div>
+          </div>
+          <div id="pdSellerStars" class="reviews-score-stars" style="font-size:16px;flex-shrink:0"></div>
         </div>
+        <button type="button" class="btn-reviews-outline" id="pdReviewsBtn" onclick="openReviewsFromDetail()">⭐ Ver reseñas y dejar opinión</button>
       </div>
     </div>
     <div class="pd-actions">
@@ -662,18 +703,46 @@ input:disabled{opacity:.65;cursor:not-allowed}
   </div>
 </div>
 
-<!-- TO SHOW REVIEWS WHEN VIEWING SELLER -->
+<!-- RESEÑAS DEL VENDEDOR -->
 <div class="overlay" id="reviewsOverlay" onclick="if(event.target.id==='reviewsOverlay')closeReviews()">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-head">
-      <div><h2>Reseñas</h2><p>Opiniones de compradores</p></div>
-      <button class="mclose" onclick="closeReviews()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="mform">
-        <div id="reviewsSummary"></div>
-        <div id="reviewsList" style="max-height:360px;overflow:auto;margin-top:8px"></div>
-        <div style="margin-top:12px"><label>Orden entregada</label><select id="revOrderId" class="pin" style="width:100%;margin-bottom:8px"><option value="">Selecciona una compra entregada…</option></select><label>Calificación (1–5)</label><input id="revRating" type="number" min="1" max="5" step="1" placeholder="1 a 5" class="pin"/><textarea id="revComment" placeholder="Comentario (opcional)"></textarea><button class="msubmit" onclick="doPostReview()">Enviar reseña</button></div>
+  <div class="reviews-shell" onclick="event.stopPropagation()">
+    <header class="reviews-head">
+      <div class="reviews-head-av" id="revSellerAv">?</div>
+      <div class="reviews-head-info">
+        <h2 id="revSellerName">Vendedor</h2>
+        <p>Opiniones de compradores verificados</p>
+        <div class="reviews-score">
+          <span class="reviews-score-stars" id="revHeaderStars">☆☆☆☆☆</span>
+          <span class="reviews-score-num" id="revHeaderScore">Sin calificaciones</span>
+        </div>
+      </div>
+      <button type="button" class="mclose" onclick="closeReviews()" aria-label="Cerrar">✕</button>
+    </header>
+    <div class="reviews-body">
+      <div class="merr" id="revLoadErr" style="margin:12px 20px 0"></div>
+      <div id="reviewsList" class="reviews-list"></div>
+      <div id="reviewsFormSection" class="reviews-form hidden">
+        <h3>Deja tu reseña</h3>
+        <p class="reviews-form-hint">Solo puedes calificar después de una compra entregada con este vendedor.</p>
+        <label>Compra a calificar</label>
+        <select id="revOrderId" class="pin" style="width:100%;height:40px;margin:6px 0 12px;font-size:13px">
+          <option value="">Selecciona tu compra entregada…</option>
+        </select>
+        <label>Tu calificación</label>
+        <div class="star-picker" id="starPicker" role="group" aria-label="Calificación">
+          <button type="button" class="star-pick" data-v="1" onclick="setReviewRating(1)">★</button>
+          <button type="button" class="star-pick" data-v="2" onclick="setReviewRating(2)">★</button>
+          <button type="button" class="star-pick" data-v="3" onclick="setReviewRating(3)">★</button>
+          <button type="button" class="star-pick" data-v="4" onclick="setReviewRating(4)">★</button>
+          <button type="button" class="star-pick" data-v="5" onclick="setReviewRating(5)">★</button>
+        </div>
+        <input type="hidden" id="revRating" value="0"/>
+        <label>Comentario (opcional)</label>
+        <textarea id="revComment" placeholder="Cuéntale a otros estudiantes cómo fue tu experiencia…" style="min-height:80px"></textarea>
+        <button type="button" class="msubmit" style="margin-top:12px" onclick="doPostReview()">Publicar reseña</button>
+      </div>
+      <div id="reviewsFormLogin" class="reviews-form" style="display:none">
+        <p class="reviews-form-hint" style="margin:0"><a href="#" onclick="event.preventDefault();closeReviews();openModal('login')">Inicia sesión</a> para dejar una reseña después de comprar.</p>
       </div>
     </div>
   </div>
