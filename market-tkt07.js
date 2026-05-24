@@ -1,10 +1,12 @@
 /* Sabana Market — frontend integrado API (TKT-14 … TKT-20) */
 'use strict';
 
+const DEFAULT_API_BASE = 'https://proyecto-final-be-bodo-glimt-1.onrender.com';
 let API_BASE = '';
 function apiUrl(path) {
   const x = path.startsWith('/') ? path : '/' + path;
-  return API_BASE ? API_BASE.replace(/\/$/, '') + x : x;
+  const base = (API_BASE || DEFAULT_API_BASE).replace(/\/$/, '');
+  return base + x;
 }
 
 function readMetaApiBase() {
@@ -63,7 +65,7 @@ async function resolveApiBase() {
     if (!API_BASE) API_BASE = 'http://localhost:3000';
     return;
   }
-  API_BASE = '';
+  API_BASE = DEFAULT_API_BASE;
 }
 
 function ensureApiDiscovered() {
@@ -390,10 +392,26 @@ function mapApiProduct(row) {
   };
 }
 
+function currentApiBase() {
+  return (API_BASE || DEFAULT_API_BASE).replace(/\/$/, '');
+}
+
 function getSession() {
   try {
     const s = JSON.parse(localStorage.getItem('sm_session') || 'null');
     if (!s || !s.token) {
+      localStorage.removeItem('sm_session');
+      return null;
+    }
+    const token = String(s.token).trim();
+    if (!token) {
+      localStorage.removeItem('sm_session');
+      return null;
+    }
+    s.token = token;
+    const savedBase = (s.apiBase || '').replace(/\/$/, '');
+    const activeBase = currentApiBase();
+    if (savedBase && savedBase !== activeBase) {
       localStorage.removeItem('sm_session');
       return null;
     }
@@ -405,8 +423,20 @@ function getSession() {
 
 function saveSession(s) {
   try {
+    s.apiBase = currentApiBase();
+    if (s.token) s.token = String(s.token).trim();
     localStorage.setItem('sm_session', JSON.stringify(s));
   } catch (_) {}
+}
+
+function handleAuthFailure(data) {
+  clearSession();
+  renderNavRight();
+  const msg =
+    (data && typeof data.error === 'string' && data.error) ||
+    'Sesión expirada. Vuelve a iniciar sesión.';
+  showToast(msg, 'error');
+  openModal('login');
 }
 
 function clearSession() {
@@ -442,7 +472,30 @@ async function apiFetch(method, path, body) {
   } catch (_) {
     data = { error: text || 'Respuesta inválida' };
   }
+  if (r.status === 401 && s && s.token && path !== '/auth/login' && path !== '/auth/register') {
+    handleAuthFailure(data);
+  }
   return { ok: r.ok, status: r.status, data };
+}
+
+async function validateSessionOnBoot() {
+  const s = getSession();
+  if (!s) return;
+  const res = await apiFetch('GET', '/auth/me');
+  if (!res.ok && res.status === 401) {
+    return;
+  }
+  if (res.ok && res.data && res.data.user) {
+    const u = res.data.user;
+    saveSession({
+      token: s.token,
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      career: u.career || null,
+    });
+  }
 }
 
 function apiErrMessage(data, fallback) {
@@ -1069,11 +1122,15 @@ function showToast(msg, type) {
 }
 
 (function boot() {
-  ensureApiDiscovered().then(function () {
-    renderNavRight();
-    initFilters();
-    loadCatalog();
-  });
+  ensureApiDiscovered()
+    .then(function () {
+      return validateSessionOnBoot();
+    })
+    .then(function () {
+      renderNavRight();
+      initFilters();
+      loadCatalog();
+    });
 })();
 
 // --- Conversations / Messages ---
@@ -1190,7 +1247,9 @@ async function startConversationFromDetail() {
   const payload = { productId: _viewingProduct.id };
   const res = await apiFetch('POST', '/conversations', payload);
   if (!res.ok) {
-    showToast(apiErrMessage(res.data, 'No se pudo iniciar la conversación'), 'error');
+    if (res.status !== 401) {
+      showToast(apiErrMessage(res.data, 'No se pudo iniciar la conversación'), 'error');
+    }
     return;
   }
   const cid =
