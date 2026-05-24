@@ -7,7 +7,7 @@ const API_BASE_URL = (
   // Intenta leer del meta tag
   document.querySelector('meta[name="sm-api-base"]')?.getAttribute('content') ||
   // Fallback para desarrollo
-  'http://localhost:3000'
+  'https://proyecto-final-be-bodo-glimt-1.onrender.com'
 );
 
 // Exporta la configuración

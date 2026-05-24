@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="sm-api-base" content="https://proyecto-1-22er.onrender.com"/>
+<meta name="sm-api-base" content="https://proyecto-final-be-bodo-glimt-1.onrender.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -585,7 +585,7 @@ input:disabled{opacity:.65;cursor:not-allowed}
       <div class="mform">
         <div id="reviewsSummary"></div>
         <div id="reviewsList" style="max-height:360px;overflow:auto;margin-top:8px"></div>
-        <div style="margin-top:12px"><label>Dejar reseña</label><input id="revRating" type="number" min="0" max="5" step="0.5" placeholder="Calificación 0-5" class="pin"/><textarea id="revComment" placeholder="Comentario (opcional)"></textarea><button class="msubmit" onclick="doPostReview()">Enviar reseña</button></div>
+        <div style="margin-top:12px"><label>Orden entregada</label><select id="revOrderId" class="pin" style="width:100%;margin-bottom:8px"><option value="">Selecciona una compra entregada…</option></select><label>Calificación (1–5)</label><input id="revRating" type="number" min="1" max="5" step="1" placeholder="1 a 5" class="pin"/><textarea id="revComment" placeholder="Comentario (opcional)"></textarea><button class="msubmit" onclick="doPostReview()">Enviar reseña</button></div>
       </div>
     </div>
   </div>

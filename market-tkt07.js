@@ -1107,8 +1107,11 @@ async function loadConversations() {
   const rows = res.data.conversations || [];
   el.innerHTML = rows
     .map(function (c) {
-      const lm = c.last_message ? (c.last_message.text || '') : '';
-      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversation(\'' + c.id + '\')"><div style="font-weight:700">' + (c.product_id ? 'Sobre producto' : 'Conversación') + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
+      const cid = c.conversationId || c.id;
+      const lm = c.lastMessage || (c.last_message ? c.last_message.text || '' : '');
+      const title = c.productTitle || (c.product_id ? 'Sobre producto' : 'Conversación');
+      const who = c.otherUser ? escapeHtml(c.otherUser) + ' · ' : '';
+      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversation(\'' + cid + '\')"><div style="font-weight:700">' + who + escapeHtml(title) + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
     })
     .join('');
 }
@@ -1132,8 +1135,10 @@ async function loadConversationsPreview() {
   box.innerHTML = rows
     .slice(0, 3)
     .map(function (c) {
-      const lm = c.last_message ? (c.last_message.text || '') : 'Sin mensajes aún';
-      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversations();openConversation(\'' + c.id + '\')"><div style="font-weight:700">' + (c.product_id ? 'Producto' : 'Conversación') + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
+      const cid = c.conversationId || c.id;
+      const lm = c.lastMessage || (c.last_message ? c.last_message.text || '' : 'Sin mensajes aún');
+      const title = c.productTitle || (c.product_id ? 'Producto' : 'Conversación');
+      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversations();openConversation(\'' + cid + '\')"><div style="font-weight:700">' + escapeHtml(title) + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
     })
     .join('');
 }
@@ -1149,7 +1154,9 @@ async function openConversation(id) {
   const msgs = res.data.messages || [];
   box.innerHTML = msgs
     .map(function (m) {
-      return '<div style="margin-bottom:8px"><div style="font-size:12px;color:#445">' + escapeHtml(m.sender_id) + ' · <span style="font-size:11px;color:#99">' + new Date(m.created_at).toLocaleString() + '</span></div><div style="padding:8px;border-radius:6px;background:#F4F6FC">' + escapeHtml(m.text) + '</div></div>';
+      const body = m.content || m.text || '';
+      const when = m.sentAt || m.created_at;
+      return '<div style="margin-bottom:8px"><div style="font-size:12px;color:#445">' + escapeHtml(m.senderId || m.sender_id) + ' · <span style="font-size:11px;color:#99">' + new Date(when).toLocaleString() + '</span></div><div style="padding:8px;border-radius:6px;background:#F4F6FC">' + escapeHtml(body) + '</div></div>';
     })
     .join('');
   // scroll to bottom
@@ -1159,7 +1166,10 @@ async function openConversation(id) {
 async function doSendMessage() {
   const txt = document.getElementById('convMsgInput').value.trim();
   if (!txt || !CURRENT_CONVERSATION_ID) return;
-  const res = await apiFetch('POST', '/conversations/' + encodeURIComponent(CURRENT_CONVERSATION_ID) + '/messages', { text: txt });
+  const res = await apiFetch('POST', '/conversations/' + encodeURIComponent(CURRENT_CONVERSATION_ID) + '/messages', {
+    content: txt,
+    text: txt,
+  });
   if (!res.ok) {
     showToast(apiErrMessage(res.data, 'No se pudo enviar el mensaje'), 'error');
     return;
@@ -1177,13 +1187,15 @@ async function startConversationFromDetail() {
     showToast('Solo puedes contactar a vendedores reales desde productos cargados en el sistema.', 'error');
     return;
   }
-  const payload = { sellerId: _viewingProduct.sellerId, productId: _viewingProduct.id };
+  const payload = { productId: _viewingProduct.id };
   const res = await apiFetch('POST', '/conversations', payload);
   if (!res.ok) {
     showToast(apiErrMessage(res.data, 'No se pudo iniciar la conversación'), 'error');
     return;
   }
-  const cid = res.data.conversation && (res.data.conversation.id || res.data.conversation);
+  const cid =
+    res.data.conversationId ||
+    (res.data.conversation && (res.data.conversation.id || res.data.conversation));
   document.getElementById('productDetailOverlay').classList.remove('show');
   await openConversations();
   if (cid) await openConversation(cid);
@@ -1206,21 +1218,35 @@ async function createPurchaseFromDetail() {
 async function loadUserPurchases() {
   const s = getSession();
   if (!s) return;
-  const res = await apiFetch('GET', '/users/' + encodeURIComponent(s.id) + '/purchases');
   const el = document.getElementById('purchasesList');
+  const res = await apiFetch('GET', '/orders');
   if (!res.ok) {
     el.innerHTML = '<div class="merr show">' + escapeHtml(apiErrMessage(res.data, 'No se pudo cargar historial')) + '</div>';
     return;
   }
-  const rows = res.data.purchases || [];
+  const rows = res.data.orders || [];
   if (!rows.length) {
     el.innerHTML = '<div class="mp-empty">No hay compras registradas.</div>';
     return;
   }
   el.innerHTML = rows
-    .map(function (p) {
-      const img = p.image_urls && p.image_urls.length ? '<img src="' + escapeHtml(p.image_urls[0]) + '" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:8px"/>' : '';
-      return '<div class="mpitem" style="align-items:center">' + img + '<div class="mpitem-info"><div class="mpitem-name">' + escapeHtml(p.product_title || p.title) + '</div><div class="mpitem-meta">' + fmt(p.price) + ' · ' + new Date(p.created_at).toLocaleString() + '</div></div></div>';
+    .map(function (o) {
+      const items = (o.items || [])
+        .map(function (it) {
+          return escapeHtml(it.title || 'Producto') + ' ×' + (it.quantity || 1);
+        })
+        .join(', ');
+      return (
+        '<div class="mpitem"><div class="mpitem-info"><div class="mpitem-name">' +
+        items +
+        '</div><div class="mpitem-meta">' +
+        fmt(o.total) +
+        ' · ' +
+        escapeHtml(o.status || '') +
+        ' · ' +
+        new Date(o.createdAt || o.created_at).toLocaleString() +
+        '</div></div></div>'
+      );
     })
     .join('');
 }
@@ -1234,21 +1260,66 @@ openProfile = async function () {
 
 // --- Reviews ---
 let CURRENT_REVIEW_SELLER = null;
+async function loadReviewableOrders(sellerId) {
+  const sel = document.getElementById('revOrderId');
+  sel.innerHTML = '<option value="">Selecciona una compra entregada…</option>';
+  const res = await apiFetch('GET', '/orders');
+  if (!res.ok) return;
+  const orders = (res.data.orders || []).filter(function (o) {
+    return o.status === 'entregada';
+  });
+  orders.forEach(function (o) {
+    const hasSeller = (o.items || []).some(function (it) {
+      return String(it.sellerId || it.seller_id) === String(sellerId);
+    });
+    if (!hasSeller) return;
+    const label =
+      (o.items || [])
+        .map(function (it) {
+          return it.title || 'Producto';
+        })
+        .join(', ') +
+      ' — ' +
+      new Date(o.createdAt || o.created_at).toLocaleDateString();
+    const opt = document.createElement('option');
+    opt.value = o.orderId || o.id;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+}
+
 async function openReviewsForSeller(sellerId) {
   CURRENT_REVIEW_SELLER = sellerId;
-  const res = await apiFetch('GET', '/users/' + encodeURIComponent(sellerId) + '/reviews');
+  const res = await apiFetch('GET', '/reviews?sellerId=' + encodeURIComponent(sellerId));
   if (!res.ok) {
     showToast(apiErrMessage(res.data, 'No se pudo cargar reseñas'), 'error');
     return;
   }
-  const sum = res.data.average != null ? String(res.data.average) : 'Sin calificaciones';
-  document.getElementById('reviewsSummary').innerHTML = '<div style="font-weight:700">Promedio: ' + escapeHtml(sum) + ' · ' + (res.data.total || 0) + ' reseñas</div>';
+  const avg =
+    res.data.averageRating != null
+      ? String(res.data.averageRating)
+      : res.data.average != null
+        ? String(res.data.average)
+        : 'Sin calificaciones';
+  const total = res.data.totalReviews != null ? res.data.totalReviews : res.data.total || 0;
+  document.getElementById('reviewsSummary').innerHTML =
+    '<div style="font-weight:700">Promedio: ' + escapeHtml(avg) + ' · ' + total + ' reseñas</div>';
   const rows = res.data.reviews || [];
   document.getElementById('reviewsList').innerHTML = rows
     .map(function (r) {
-      return '<div style="padding:8px;border-bottom:1px solid var(--border)"><div style="font-weight:700">' + escapeHtml(r.reviewer_name) + ' · ' + escapeHtml(String(r.rating)) + '</div><div style="font-size:13px;color:#444">' + escapeHtml(r.comment || '') + '</div></div>';
+      const name = r.buyerName || r.reviewer_name || 'Comprador';
+      return (
+        '<div style="padding:8px;border-bottom:1px solid var(--border)"><div style="font-weight:700">' +
+        escapeHtml(name) +
+        ' · ' +
+        escapeHtml(String(r.rating)) +
+        '</div><div style="font-size:13px;color:#444">' +
+        escapeHtml(r.comment || '') +
+        '</div></div>'
+      );
     })
     .join('');
+  await loadReviewableOrders(sellerId);
   document.getElementById('reviewsOverlay').classList.add('show');
 }
 
@@ -1261,7 +1332,21 @@ async function doPostReview() {
   if (!CURRENT_REVIEW_SELLER) return;
   const rating = Number(document.getElementById('revRating').value);
   const comment = document.getElementById('revComment').value.trim();
-  const res = await apiFetch('POST', '/users/' + encodeURIComponent(CURRENT_REVIEW_SELLER) + '/reviews', { rating, comment });
+  const orderId = document.getElementById('revOrderId').value;
+  if (!orderId) {
+    showToast('Selecciona una orden entregada para reseñar', 'error');
+    return;
+  }
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    showToast('La calificación debe ser un entero entre 1 y 5', 'error');
+    return;
+  }
+  const res = await apiFetch('POST', '/reviews', {
+    sellerId: CURRENT_REVIEW_SELLER,
+    orderId: orderId,
+    rating: rating,
+    comment: comment,
+  });
   if (!res.ok) {
     showToast(apiErrMessage(res.data, 'No se pudo enviar la reseña'), 'error');
     return;
