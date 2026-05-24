@@ -1135,40 +1135,137 @@ function showToast(msg, type) {
 
 // --- Conversations / Messages ---
 let CURRENT_CONVERSATION_ID = null;
+let CONVERSATIONS_CACHE = {};
+
+function formatChatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  if (sameDay) {
+    return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+}
+
+function setChatLayoutActive(active) {
+  const layout = document.getElementById('chatLayout');
+  if (active) layout.classList.add('has-active');
+  else layout.classList.remove('has-active');
+}
+
+function showChatEmptyState() {
+  CURRENT_CONVERSATION_ID = null;
+  setChatLayoutActive(false);
+  document.getElementById('chatEmptyState').style.display = 'flex';
+  document.getElementById('convMessages').style.display = 'none';
+  document.getElementById('convMessages').innerHTML = '';
+  document.getElementById('chatActiveHead').classList.add('hidden');
+  document.getElementById('chatComposerForm').classList.add('hidden');
+  document.querySelectorAll('.chat-thread.active').forEach(function (el) {
+    el.classList.remove('active');
+  });
+}
+
+function updateChatActiveHeader(meta) {
+  const name = meta.otherUser || 'Usuario';
+  document.getElementById('chatActiveName').textContent = name;
+  document.getElementById('chatActiveSub').textContent = meta.productTitle
+    ? 'Producto: ' + meta.productTitle
+    : 'Conversación directa';
+  const av = document.getElementById('chatActiveAv');
+  av.textContent = initialsFromName(name);
+  av.style.background = colorFromSeed(name);
+}
 
 async function openConversations() {
   const s = getSession();
   if (!s) return openModal('login');
   document.getElementById('conversationsOverlay').classList.add('show');
+  showChatEmptyState();
   await loadConversations();
   await loadConversationsPreview();
 }
 
 function closeConversations() {
   document.getElementById('conversationsOverlay').classList.remove('show');
-  CURRENT_CONVERSATION_ID = null;
-  document.getElementById('convMessages').innerHTML = '';
+  showChatEmptyState();
+}
+
+function chatBackToList() {
+  showChatEmptyState();
+  loadConversations();
 }
 
 async function loadConversations() {
   const res = await apiFetch('GET', '/conversations');
   const el = document.getElementById('convList');
   const err = document.getElementById('convListErr');
+  const countLbl = document.getElementById('convCountLabel');
   err.className = 'merr';
+
   if (!res.ok) {
     err.textContent = apiErrMessage(res.data, 'No se pudieron cargar conversaciones.');
     err.className = 'merr show';
     el.innerHTML = '';
+    countLbl.textContent = 'Error al cargar';
     return;
   }
+
   const rows = res.data.conversations || [];
+  CONVERSATIONS_CACHE = {};
+  countLbl.textContent =
+    rows.length === 0
+      ? 'Sin conversaciones aún'
+      : rows.length + (rows.length === 1 ? ' conversación' : ' conversaciones');
+
+  if (!rows.length) {
+    el.innerHTML =
+      '<div class="chat-empty" style="padding:24px 12px"><div class="chat-empty-icon" style="font-size:32px">📭</div><p style="font-size:12px">Contacta a un vendedor desde cualquier producto para empezar.</p></div>';
+    return;
+  }
+
   el.innerHTML = rows
     .map(function (c) {
       const cid = c.conversationId || c.id;
-      const lm = c.lastMessage || (c.last_message ? c.last_message.text || '' : '');
-      const title = c.productTitle || (c.product_id ? 'Sobre producto' : 'Conversación');
-      const who = c.otherUser ? escapeHtml(c.otherUser) + ' · ' : '';
-      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversation(\'' + cid + '\')"><div style="font-weight:700">' + who + escapeHtml(title) + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
+      const name = c.otherUser || 'Usuario';
+      const lm = c.lastMessage || (c.last_message ? c.last_message.text || '' : '') || 'Sin mensajes aún';
+      const product = c.productTitle || '';
+      const time = formatChatTime(c.lastMessageAt);
+      const active = CURRENT_CONVERSATION_ID === cid ? ' active' : '';
+      CONVERSATIONS_CACHE[cid] = {
+        otherUser: name,
+        productTitle: product,
+      };
+      return (
+        '<article class="chat-thread' +
+        active +
+        '" data-id="' +
+        escapeHtml(cid) +
+        '" onclick="openConversation(\'' +
+        escapeJsStr(cid) +
+        '\')">' +
+        '<div class="chat-thread-av" style="background:' +
+        colorFromSeed(name) +
+        '">' +
+        escapeHtml(initialsFromName(name)) +
+        '</div>' +
+        '<div class="chat-thread-body">' +
+        '<div class="chat-thread-top">' +
+        '<span class="chat-thread-name">' +
+        escapeHtml(name) +
+        '</span>' +
+        (time ? '<span class="chat-thread-time">' + escapeHtml(time) + '</span>' : '') +
+        '</div>' +
+        (product ? '<div class="chat-thread-product">' + escapeHtml(product) + '</div>' : '') +
+        '<div class="chat-thread-preview">' +
+        escapeHtml(lm) +
+        '</div></div></article>'
+      );
     })
     .join('');
 }
@@ -1194,39 +1291,111 @@ async function loadConversationsPreview() {
     .map(function (c) {
       const cid = c.conversationId || c.id;
       const lm = c.lastMessage || (c.last_message ? c.last_message.text || '' : 'Sin mensajes aún');
-      const title = c.productTitle || (c.product_id ? 'Producto' : 'Conversación');
-      return '<div class="mpitem" style="cursor:pointer;padding:8px 10px;margin-bottom:6px" onclick="openConversations();openConversation(\'' + cid + '\')"><div style="font-weight:700">' + escapeHtml(title) + '</div><div style="font-size:12px;color:#556">' + escapeHtml(lm) + '</div></div>';
+      const name = c.otherUser || 'Chat';
+      const product = c.productTitle || '';
+      return (
+        '<div class="mpitem" style="cursor:pointer;align-items:flex-start" onclick="openConversations();openConversation(\'' +
+        escapeJsStr(cid) +
+        '\')">' +
+        '<div class="mpitem-emo" style="background:' +
+        colorFromSeed(name) +
+        ';color:#fff;font-size:12px;font-weight:700">' +
+        escapeHtml(initialsFromName(name)) +
+        '</div>' +
+        '<div class="mpitem-info"><div class="mpitem-name">' +
+        escapeHtml(name) +
+        (product ? ' · ' + escapeHtml(product) : '') +
+        '</div><div class="mpitem-meta">' +
+        escapeHtml(lm) +
+        '</div></div></div>'
+      );
     })
     .join('');
 }
 
 async function openConversation(id) {
+  const s = getSession();
+  if (!s) return;
   CURRENT_CONVERSATION_ID = id;
-  const res = await apiFetch('GET', '/conversations/' + encodeURIComponent(id) + '/messages');
+  setChatLayoutActive(true);
+
+  document.getElementById('chatEmptyState').style.display = 'none';
+  document.getElementById('convMessages').style.display = 'flex';
+  document.getElementById('chatActiveHead').classList.remove('hidden');
+  document.getElementById('chatComposerForm').classList.remove('hidden');
+
+  const meta = CONVERSATIONS_CACHE[id] || { otherUser: 'Usuario', productTitle: '' };
+  updateChatActiveHeader(meta);
+
+  document.querySelectorAll('.chat-thread').forEach(function (el) {
+    el.classList.toggle('active', el.getAttribute('data-id') === id);
+  });
+
   const box = document.getElementById('convMessages');
+  box.innerHTML = '<div class="chat-empty" style="padding:20px"><p>Cargando mensajes…</p></div>';
+
+  const res = await apiFetch('GET', '/conversations/' + encodeURIComponent(id) + '/messages');
   if (!res.ok) {
-    box.innerHTML = '<div class="merr show">' + escapeHtml(apiErrMessage(res.data, 'No se pudo cargar la conversación')) + '</div>';
+    box.innerHTML =
+      '<div class="merr show" style="align-self:center;max-width:320px">' +
+      escapeHtml(apiErrMessage(res.data, 'No se pudo cargar la conversación')) +
+      '</div>';
     return;
   }
+
   const msgs = res.data.messages || [];
-  box.innerHTML = msgs
-    .map(function (m) {
-      const body = m.content || m.text || '';
-      const when = m.sentAt || m.created_at;
-      return '<div style="margin-bottom:8px"><div style="font-size:12px;color:#445">' + escapeHtml(m.senderId || m.sender_id) + ' · <span style="font-size:11px;color:#99">' + new Date(when).toLocaleString() + '</span></div><div style="padding:8px;border-radius:6px;background:#F4F6FC">' + escapeHtml(body) + '</div></div>';
-    })
-    .join('');
-  // scroll to bottom
-  box.scrollTop = box.scrollHeight;
+  if (!msgs.length) {
+    box.innerHTML =
+      '<div class="chat-empty" style="flex:1"><p style="font-size:13px;color:var(--muted)">Aún no hay mensajes. ¡Escribe el primero!</p></div>';
+  } else {
+    box.innerHTML = msgs
+      .map(function (m) {
+        const body = m.content || m.text || '';
+        const when = m.sentAt || m.created_at;
+        const senderId = String(m.senderId || m.sender_id || '');
+        const mine = senderId === String(s.id);
+        const side = mine ? 'mine' : 'theirs';
+        const label = mine ? 'Tú' : meta.otherUser || 'Contacto';
+        return (
+          '<div class="chat-bubble ' +
+          side +
+          '">' +
+          '<div class="chat-bubble-inner">' +
+          escapeHtml(body) +
+          '</div>' +
+          '<div class="chat-bubble-meta">' +
+          escapeHtml(label) +
+          ' · ' +
+          escapeHtml(
+            new Date(when).toLocaleString('es-CO', {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          ) +
+          '</div></div>'
+        );
+      })
+      .join('');
+  }
+
+  requestAnimationFrame(function () {
+    box.scrollTop = box.scrollHeight;
+  });
+  document.getElementById('convMsgInput').focus();
 }
 
 async function doSendMessage() {
   const txt = document.getElementById('convMsgInput').value.trim();
   if (!txt || !CURRENT_CONVERSATION_ID) return;
+  const btn = document.getElementById('chatSendBtn');
+  btn.disabled = true;
   const res = await apiFetch('POST', '/conversations/' + encodeURIComponent(CURRENT_CONVERSATION_ID) + '/messages', {
     content: txt,
     text: txt,
   });
+  btn.disabled = false;
   if (!res.ok) {
     showToast(apiErrMessage(res.data, 'No se pudo enviar el mensaje'), 'error');
     return;
@@ -1234,6 +1403,7 @@ async function doSendMessage() {
   document.getElementById('convMsgInput').value = '';
   await openConversation(CURRENT_CONVERSATION_ID);
   await loadConversations();
+  await loadConversationsPreview();
 }
 
 async function startConversationFromDetail() {

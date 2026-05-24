@@ -254,6 +254,69 @@ body{min-height:100vh}
 .toast.error{border-left:3px solid var(--red)}
 #btnBecomeSeller:hover{filter:brightness(1.05)}
 input:disabled{opacity:.65;cursor:not-allowed}
+
+/* —— Chat (mensajería) —— */
+#conversationsOverlay.overlay{padding:12px;align-items:stretch}
+@media(min-width:720px){#conversationsOverlay.overlay{padding:24px;align-items:center}}
+.chat-shell{background:#fff;border-radius:16px;width:100%;max-width:980px;height:min(92vh,760px);margin:0 auto;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(6,14,43,.28);transform:translateY(12px);transition:transform .25s}
+#conversationsOverlay.show .chat-shell{transform:translateY(0)}
+.chat-top{background:linear-gradient(135deg,var(--navy2),var(--navy));padding:16px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.chat-top h2{font-family:var(--serif);font-size:22px;font-weight:600;color:#fff;margin:0}
+.chat-top p{font-size:12px;color:rgba(255,255,255,.5);margin:2px 0 0}
+.chat-top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.chat-top .mclose{position:static;background:rgba(255,255,255,.12);color:#fff;border:none;width:36px;height:36px;border-radius:8px;font-size:18px;cursor:pointer}
+.chat-top .mclose:hover{background:rgba(255,255,255,.22)}
+.chat-layout{flex:1;display:grid;grid-template-columns:minmax(260px,320px) 1fr;min-height:0;background:#F4F6FC}
+.chat-sidebar{display:flex;flex-direction:column;border-right:1px solid var(--border);background:#fff;min-height:0}
+.chat-sidebar-hdr{padding:14px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.chat-sidebar-hdr h3{font-size:13px;font-weight:700;color:var(--text);margin:0}
+.chat-sidebar-hdr span{font-size:11px;color:var(--muted);display:block;margin-top:2px}
+.chat-thread-list{flex:1;overflow-y:auto;padding:8px}
+.chat-thread{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:12px;cursor:pointer;border:1px solid transparent;margin-bottom:6px;transition:background .15s,border-color .15s}
+.chat-thread:hover{background:#F8F9FD}
+.chat-thread.active{background:var(--skylt);border-color:rgba(26,77,179,.25)}
+.chat-thread-av{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.chat-thread-body{flex:1;min-width:0}
+.chat-thread-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
+.chat-thread-name{font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-thread-time{font-size:10px;color:var(--muted);flex-shrink:0}
+.chat-thread-product{font-size:11px;color:var(--sky);font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-thread-preview{font-size:12px;color:var(--sub);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chat-main{display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#EEF2FA 0%,#F8F9FD 100%)}
+.chat-active-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+.chat-back{display:none;width:36px;height:36px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:16px;color:var(--navy);flex-shrink:0}
+.chat-active-av{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.chat-active-info{flex:1;min-width:0}
+.chat-active-name{font-size:15px;font-weight:700;color:var(--text)}
+.chat-active-sub{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-messages{flex:1;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:10px;min-height:200px}
+.chat-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;color:var(--muted)}
+.chat-empty-icon{font-size:48px;margin-bottom:12px;opacity:.5}
+.chat-empty h4{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+.chat-empty p{font-size:13px;line-height:1.6;max-width:280px}
+.chat-bubble{max-width:78%;display:flex;flex-direction:column;gap:4px}
+.chat-bubble.mine{align-self:flex-end;align-items:flex-end}
+.chat-bubble.theirs{align-self:flex-start;align-items:flex-start}
+.chat-bubble-inner{padding:11px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-break:break-word}
+.chat-bubble.mine .chat-bubble-inner{background:var(--navy);color:#fff;border-bottom-right-radius:4px}
+.chat-bubble.theirs .chat-bubble-inner{background:#fff;color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px;box-shadow:0 1px 3px rgba(6,14,43,.06)}
+.chat-bubble-meta{font-size:10px;color:var(--muted);padding:0 4px}
+.chat-composer{display:flex;gap:10px;padding:14px 18px;background:#fff;border-top:1px solid var(--border);flex-shrink:0}
+.chat-composer input{flex:1;height:46px;border:1px solid var(--border);border-radius:12px;padding:0 16px;font-family:var(--sans);font-size:14px;outline:none;background:#F8F9FD}
+.chat-composer input:focus{border-color:var(--sky);background:#fff}
+.chat-send{height:46px;padding:0 22px;background:var(--green);color:#fff;border:none;border-radius:12px;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.chat-send:hover{background:#0d6a42}
+.chat-send:disabled{opacity:.5;cursor:not-allowed}
+.chat-composer.hidden{display:none}
+.chat-active-head.hidden{display:none}
+@media(max-width:719px){
+  .chat-shell{height:100%;max-height:none;border-radius:12px}
+  #conversationsOverlay.overlay{padding:0}
+  .chat-layout{grid-template-columns:1fr}
+  .chat-layout:not(.has-active) .chat-main{display:none}
+  .chat-layout.has-active .chat-sidebar{display:none}
+  .chat-layout.has-active .chat-back{display:flex;align-items:center;justify-content:center}
+}
 </style>
 </head>
 <body>
@@ -556,20 +619,45 @@ input:disabled{opacity:.65;cursor:not-allowed}
 
 <!-- CONVERSATIONS / MESSAGES OVERLAY -->
 <div class="overlay" id="conversationsOverlay" onclick="if(event.target.id==='conversationsOverlay')closeConversations()">
-  <div class="modal wide" onclick="event.stopPropagation()">
-    <div class="modal-head">
-      <div><h2>Mensajes</h2><p>Conversaciones</p></div>
-      <button class="mclose" onclick="closeConversations()">✕</button>
-    </div>
-    <div class="modal-body" style="display:flex;gap:12px">
-      <div style="width:240px">
-        <div class="mform"><div class="merr" id="convListErr"></div></div>
-        <div id="convList" style="max-height:440px;overflow:auto"></div>
+  <div class="chat-shell" onclick="event.stopPropagation()">
+    <header class="chat-top">
+      <div>
+        <h2>Mensajes</h2>
+        <p>Coordina con vendedores y compradores</p>
       </div>
-      <div style="flex:1;display:flex;flex-direction:column">
-        <div id="convMessages" style="flex:1;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:#fff"></div>
-        <div style="display:flex;gap:8px"><input id="convMsgInput" type="text" class="pin" placeholder="Escribe un mensaje..."/><button class="msubmit" onclick="doSendMessage()">Enviar</button></div>
+      <div class="chat-top-actions">
+        <button type="button" class="mclose" onclick="closeConversations()" aria-label="Cerrar">✕</button>
       </div>
+    </header>
+    <div class="chat-layout" id="chatLayout">
+      <aside class="chat-sidebar">
+        <div class="chat-sidebar-hdr">
+          <h3>Tus conversaciones</h3>
+          <span id="convCountLabel">Cargando…</span>
+        </div>
+        <div class="merr" id="convListErr" style="margin:8px 12px 0"></div>
+        <div id="convList" class="chat-thread-list"></div>
+      </aside>
+      <main class="chat-main">
+        <div id="chatActiveHead" class="chat-active-head hidden">
+          <button type="button" class="chat-back" id="chatBackBtn" onclick="chatBackToList()" aria-label="Volver">←</button>
+          <div class="chat-active-av" id="chatActiveAv">?</div>
+          <div class="chat-active-info">
+            <div class="chat-active-name" id="chatActiveName">—</div>
+            <div class="chat-active-sub" id="chatActiveSub">—</div>
+          </div>
+        </div>
+        <div id="chatEmptyState" class="chat-empty">
+          <div class="chat-empty-icon">💬</div>
+          <h4>Selecciona una conversación</h4>
+          <p>Elige un chat de la lista o contacta a un vendedor desde la ficha de un producto.</p>
+        </div>
+        <div id="convMessages" class="chat-messages" style="display:none"></div>
+        <form id="chatComposerForm" class="chat-composer hidden" onsubmit="event.preventDefault();doSendMessage();">
+          <input id="convMsgInput" type="text" placeholder="Escribe un mensaje…" autocomplete="off" maxlength="2000"/>
+          <button type="submit" class="chat-send" id="chatSendBtn">Enviar</button>
+        </form>
+      </main>
     </div>
   </div>
 </div>
@@ -594,6 +682,6 @@ input:disabled{opacity:.65;cursor:not-allowed}
 <div class="toast" id="toast"></div>
 
 <script src="config.js"></script>
-<script defer src="/market-tkt07.js"></script>
+<script defer src="market-tkt07.js"></script>
 </body>
 </html>
